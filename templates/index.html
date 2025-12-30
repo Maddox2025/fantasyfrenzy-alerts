@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>FantasyFrenzy Alerts</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 18px; }
+      h1 { margin: 0 0 8px; }
+      p { color: #333; line-height: 1.4; }
+      label { display:block; margin-top: 12px; font-weight: 600; }
+      input, select { width: 100%; padding: 10px; margin-top: 6px; border-radius: 10px; border:1px solid #ccc; }
+      .row { display:flex; gap: 12px; }
+      .row > div { flex: 1; }
+      .checks { margin-top: 12px; }
+      .checks label { font-weight: 500; display:flex; gap: 10px; align-items:center; }
+      .checks input { width: auto; }
+      button { margin-top: 16px; padding: 12px 14px; border: 0; border-radius: 12px; font-weight: 700; cursor:pointer; }
+      .ok { background:#e8fff0; border:1px solid #b7f5cc; padding: 10px; border-radius: 10px; margin-top: 12px;}
+      .err { background:#ffecec; border:1px solid #ffbaba; padding: 10px; border-radius: 10px; margin-top: 12px;}
+      .small { color:#666; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>FantasyFrenzy Alerts 🚨</h1>
+      <p>Get reminder emails so you never forget to set your fantasy lineup or submit waivers.</p>
+      <p class="small">Not affiliated with the NFL or any fantasy platform.</p>
+
+      {% if message %}
+        <div class="ok">{{ message }}</div>
+      {% endif %}
+      {% if error %}
+        <div class="err">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/signup-web">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="you@gmail.com" required />
+
+        <label>Timezone</label>
+        <select name="timezone">
+          <option value="America/New_York">America/New_York (ET)</option>
+          <option value="America/Chicago">America/Chicago (CT)</option>
+          <option value="America/Denver">America/Denver (MT)</option>
+          <option value="America/Los_Angeles">America/Los_Angeles (PT)</option>
+        </select>
+
+        <div class="checks">
+          <label><input type="checkbox" name="alert_thu" checked /> Thursday lineup reminder</label>
+          <label><input type="checkbox" name="alert_sat" checked /> Saturday lineup reminder</label>
+          <label><input type="checkbox" name="alert_sun" checked /> Sunday morning reminder</label>
+          <label><input type="checkbox" name="alert_waiver" checked /> Waiver reminder (night before)</label>
+        </div>
+
+        <button type="submit">Sign me up</button>
+      </form>
+    </div>
+  </body>
+</html>

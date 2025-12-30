@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+yagmail
+APScheduler
+jinja2
+python-multipart

@@ -161,6 +161,13 @@ def signup_web(
     alert_sun: str | None = Form(None),
     alert_waiver: str | None = Form(None),
 ):
+    
+ from fastapi.responses import RedirectResponse
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/landing")
+   
     # HTML checkboxes send "on" when checked, nothing when unchecked
     upsert_user(
         email=email,

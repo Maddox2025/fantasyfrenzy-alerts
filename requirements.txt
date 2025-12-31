@@ -5,3 +5,4 @@ yagmail
 APScheduler
 jinja2
 python-multipart
+email-validator

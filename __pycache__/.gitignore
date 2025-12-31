@@ -1,3 +1,4 @@
-ffalerts.db
 .env
 __pycache__/
+*.pyc
+ffalerts.db

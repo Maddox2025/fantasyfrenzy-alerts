@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-apscheduler
-python-dotenv
-yagmail
-jinja2
-python-multipart
-pydantic[email]

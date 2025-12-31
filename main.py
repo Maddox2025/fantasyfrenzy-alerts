@@ -2,14 +2,12 @@ from datetime import datetime
 import os
 import sqlite3
 import atexit
+import urllib.parse
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, EmailStr
-
-from fastapi import Request, Form
+from fastapi import FastAPI, HTTPException, Query, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
+from pydantic import BaseModel, EmailStr
 
 import yagmail
 from dotenv import load_dotenv
@@ -24,7 +22,7 @@ GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-    raise RuntimeError("Missing GMAIL_USER or GMAIL_APP_PASSWORD in .env")
+    raise RuntimeError("Missing GMAIL_USER or GMAIL_APP_PASSWORD in environment variables")
 
 yag = yagmail.SMTP(GMAIL_USER, GMAIL_APP_PASSWORD)
 
@@ -109,12 +107,10 @@ def upsert_user(email: str, timezone: str, alert_thu=True, alert_sat=True, alert
     conn.close()
 
 # ----------------------------
-# FastAPI app
+# FastAPI app + Templates
 # ----------------------------
 app = FastAPI()
-
 templates = Jinja2Templates(directory="templates")
-
 
 class SignupRequest(BaseModel):
     email: EmailStr
@@ -124,7 +120,9 @@ class SignupRequest(BaseModel):
     alert_sun: bool = True
     alert_waiver: bool = True
 
-
+# ----------------------------
+# API endpoints
+# ----------------------------
 @app.post("/signup")
 def signup(payload: SignupRequest):
     if "/" not in payload.timezone:
@@ -144,15 +142,41 @@ def signup(payload: SignupRequest):
 def list_users():
     return {"count": len(get_all_users()), "users": get_all_users()}
 
-@app.get("/landing", response_class=HTMLResponse)
-def landing(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
+# ----------------------------
+# Web pages
+# ----------------------------
 @app.get("/", include_in_schema=False)
 def root():
     return RedirectResponse(url="/landing")
 
-@app.post("/signup-web", response_class=HTMLResponse)
+@app.get("/landing", response_class=HTMLResponse)
+def landing(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/confirmed", response_class=HTMLResponse)
+def confirmed(
+    request: Request,
+    email: str = Query(""),
+    timezone: str = Query("America/New_York"),
+    alert_thu: bool = Query(True),
+    alert_sat: bool = Query(True),
+    alert_sun: bool = Query(True),
+    alert_waiver: bool = Query(True),
+):
+    return templates.TemplateResponse(
+        "confirmed.html",
+        {
+            "request": request,
+            "email": email,
+            "timezone": timezone,
+            "alert_thu": alert_thu,
+            "alert_sat": alert_sat,
+            "alert_sun": alert_sun,
+            "alert_waiver": alert_waiver,
+        },
+    )
+
+@app.post("/signup-web")
 def signup_web(
     request: Request,
     email: str = Form(...),
@@ -162,7 +186,7 @@ def signup_web(
     alert_sun: str | None = Form(None),
     alert_waiver: str | None = Form(None),
 ):
-    # HTML checkboxes send "on" when checked, nothing when unchecked
+    # Save user settings
     upsert_user(
         email=email,
         timezone=timezone,
@@ -171,11 +195,19 @@ def signup_web(
         alert_sun=bool(alert_sun),
         alert_waiver=bool(alert_waiver),
     )
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "message": f"✅ You’re signed up, {email}!"}
-    )
 
+    # Build redirect URL safely (handles @ and special chars)
+    params = {
+        "email": email,
+        "timezone": timezone,
+        "alert_thu": str(bool(alert_thu)).lower(),
+        "alert_sat": str(bool(alert_sat)).lower(),
+        "alert_sun": str(bool(alert_sun)).lower(),
+        "alert_waiver": str(bool(alert_waiver)).lower(),
+    }
+    url = "/confirmed?" + urllib.parse.urlencode(params)
+
+    return RedirectResponse(url=url, status_code=303)
 
 # ----------------------------
 # Reminder logic
@@ -221,22 +253,19 @@ def waiver_reminder():
 # Scheduler
 # ----------------------------
 scheduler = BackgroundScheduler(timezone="America/New_York")
-
 scheduler.add_job(thursday_reminder, "cron", day_of_week="thu", hour=18, minute=0)
 scheduler.add_job(saturday_reminder, "cron", day_of_week="sat", hour=9, minute=0)
 scheduler.add_job(sunday_morning_reminder, "cron", day_of_week="sun", hour=9, minute=30)
 scheduler.add_job(waiver_reminder, "cron", day_of_week="tue", hour=22, minute=0)
-
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
 # ----------------------------
-# Manual test endpoint
+# Manual test endpoints
 # ----------------------------
-
 @app.get("/test-email")
 def test_email():
-    to_email = os.getenv("TEST_EMAIL_TO")  # set this in Render
+    to_email = os.getenv("TEST_EMAIL_TO")
     if not to_email:
         raise HTTPException(status_code=500, detail="Missing TEST_EMAIL_TO env var")
 

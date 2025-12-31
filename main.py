@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from fastapi import Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 
@@ -124,9 +124,6 @@ class SignupRequest(BaseModel):
     alert_sun: bool = True
     alert_waiver: bool = True
 
-@app.get("/")
-def home():
-    return {"status": "FantasyFrenzy Alerts running", "time": str(datetime.now())}
 
 @app.post("/signup")
 def signup(payload: SignupRequest):
@@ -151,6 +148,10 @@ def list_users():
 def landing(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/landing")
+
 @app.post("/signup-web", response_class=HTMLResponse)
 def signup_web(
     request: Request,
@@ -161,13 +162,6 @@ def signup_web(
     alert_sun: str | None = Form(None),
     alert_waiver: str | None = Form(None),
 ):
-    
- from fastapi.responses import RedirectResponse
-
-@app.get("/")
-def root():
-    return RedirectResponse(url="/landing")
-   
     # HTML checkboxes send "on" when checked, nothing when unchecked
     upsert_user(
         email=email,
@@ -239,6 +233,20 @@ atexit.register(lambda: scheduler.shutdown())
 # ----------------------------
 # Manual test endpoint
 # ----------------------------
+
+@app.get("/test-email")
+def test_email():
+    to_email = os.getenv("TEST_EMAIL_TO")  # set this in Render
+    if not to_email:
+        raise HTTPException(status_code=500, detail="Missing TEST_EMAIL_TO env var")
+
+    send_email(
+        to_email,
+        "FantasyFrenzy ✅ Test Email",
+        "If you got this, your Render deployment can send emails successfully."
+    )
+    return {"ok": True, "sent_to": to_email}
+
 @app.post("/test/{which}")
 def test(which: str):
     which = which.lower()

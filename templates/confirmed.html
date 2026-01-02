@@ -5,57 +5,36 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Signed Up - FantasyFrenzy Alerts</title>
     <style>
-      body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; background:#fafafa; }
-      .card { background:#fff; border: 1px solid #e5e5e5; border-radius: 14px; padding: 20px; box-shadow: 0 1px 10px rgba(0,0,0,.04); }
-      h1 { margin: 0 0 10px; }
-      p { color:#333; line-height: 1.45; margin: 8px 0; }
-      .row { display:flex; gap:12px; flex-wrap:wrap; margin-top: 10px; }
-      .pill { display:inline-block; padding:7px 11px; border:1px solid #ddd; border-radius: 999px; margin: 4px 6px 0 0; background:#f7f7f7; }
-      .on { border-color:#b7e4c7; background:#e9f7ef; }
-      .off { border-color:#ffd6a5; background:#fff3e0; }
-      .btns { margin-top: 18px; display:flex; gap:10px; flex-wrap:wrap; }
-      a.btn { text-decoration:none; border:1px solid #ddd; padding:10px 12px; border-radius: 10px; display:inline-block; background:#fff; color:#111; }
-      a.btn.primary { background:#111; color:#fff; border-color:#111; }
-      code { background:#f2f2f2; padding:2px 6px; border-radius:6px; }
-      .small { color:#666; font-size: 13px; margin-top: 14px; }
+      body { font-family: Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 18px; }
+      h1 { margin: 0 0 8px; }
+      p { color:#333; line-height: 1.4; }
+      .pill { display:inline-block; padding:6px 10px; border:1px solid #ddd; border-radius: 999px; margin: 4px 6px 0 0; }
+      a { display:inline-block; margin-top: 14px; }
+      .small { color:#666; font-size: 13px; }
     </style>
   </head>
+
   <body>
     <div class="card">
       <h1>✅ You’re signed up!</h1>
 
-      <p><strong>Email:</strong> <code>{{ email }}</code></p>
-      <p><strong>Timezone:</strong> <code>{{ timezone }}</code></p>
+      <p><strong>Email:</strong> {{ email }}</p>
+      <p><strong>Timezone:</strong> {{ timezone }}</p>
 
-      <p style="margin-top:14px;"><strong>Your alert settings:</strong></p>
+      <p><strong>Alerts enabled:</strong></p>
+      {% if alert_thu %}<span class="pill">Thursday</span>{% endif %}
+      {% if alert_sat %}<span class="pill">Saturday</span>{% endif %}
+      {% if alert_sun %}<span class="pill">Sunday</span>{% endif %}
+      {% if alert_waiver %}<span class="pill">Waivers</span>{% endif %}
+      {% if not (alert_thu or alert_sat or alert_sun or alert_waiver) %}
+        <span class="pill">None</span>
+      {% endif %}
 
-      <div class="row">
-        <span class="pill {% if alert_thu %}on{% else %}off{% endif %}">
-          Thursday: {% if alert_thu %}ON{% else %}OFF{% endif %}
-        </span>
+      <p style="margin-top:16px;">You can close this page. Reminders will be sent based on your selections.</p>
+      <p class="small">Tip: Bookmark this site so you can update settings later.</p>
 
-        <span class="pill {% if alert_sat %}on{% else %}off{% endif %}">
-          Saturday: {% if alert_sat %}ON{% else %}OFF{% endif %}
-        </span>
-
-        <span class="pill {% if alert_sun %}on{% else %}off{% endif %}">
-          Sunday: {% if alert_sun %}ON{% else %}OFF{% endif %}
-        </span>
-
-        <span class="pill {% if alert_waiver %}on{% else %}off{% endif %}">
-          Waivers: {% if alert_waiver %}ON{% else %}OFF{% endif %}
-        </span>
-      </div>
-
-      <div class="btns">
-        <a class="btn primary" href="/landing">Back to settings</a>
-        <!-- This hits your existing endpoint; it will send to TEST_EMAIL_TO -->
-        <a class="btn" href="/test-email" target="_blank" rel="noopener">Send test email</a>
-      </div>
-
-      <p class="small">
-        Tip: On Render Free, the app can “sleep.” First page load might take ~30–60 seconds.
-      </p>
+      <a href="/landing">Back to settings</a>
     </div>
   </body>
 </html>

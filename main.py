@@ -1,7 +1,15 @@
 from datetime import datetime
+import email
 import os
 import sqlite3
 import atexit
+import urllib.parse
+
+import hmac
+import hashlib
+
+import hmac
+import hashlib
 import urllib.parse
 
 from fastapi import FastAPI, HTTPException, Query, Request, Form
@@ -29,6 +37,22 @@ yag = yagmail.SMTP(GMAIL_USER, GMAIL_APP_PASSWORD)
 def send_email(to_email: str, subject: str, body: str):
     yag.send(to=to_email, subject=subject, contents=body)
 
+def send_welcome_email(to_email: str):
+    subject = "FantasyFrenzy ✅ You’re signed up"
+    body = (
+        "You’re all set!\n\n"
+        "FantasyFrenzy will remind you before key fantasy football moments:\n"
+        "• Thursday Night Football\n"
+        "• Saturday games\n"
+        "• Sunday morning kickoffs\n"
+        "• Waiver deadlines\n\n"
+        "You don’t need to do anything else.\n\n"
+        "Tip: If you don’t see future emails, check spam and mark as Not Spam.\n\n"
+        "Good luck this week 🏈\n"
+        "– FantasyFrenzy"
+    )
+    send_email(to_email, subject, body)
+
 # ----------------------------
 # Database (SQLite)
 # ----------------------------
@@ -49,6 +73,7 @@ def db_init():
             alert_sat INTEGER NOT NULL DEFAULT 1,
             alert_sun INTEGER NOT NULL DEFAULT 1,
             alert_waiver INTEGER NOT NULL DEFAULT 1,
+            unsubscribed INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         );
     """)
@@ -57,12 +82,25 @@ def db_init():
 
 db_init()
 
+def db_migrate():
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(users);")
+    cols = [row[1] for row in cur.fetchall()]
+    if "unsubscribed" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN unsubscribed INTEGER NOT NULL DEFAULT 0;")
+        conn.commit()
+    conn.close()
+
+db_migrate()
+
+
 def get_all_users():
     conn = db_connect()
     cur = conn.cursor()
     cur.execute("""
-        SELECT email, timezone, alert_thu, alert_sat, alert_sun, alert_waiver
-        FROM users
+        SELECT email, timezone, alert_thu, alert_sat, alert_sun, alert_waiver, unsubscribed
+FROM users
     """)
     rows = cur.fetchall()
     conn.close()
@@ -76,8 +114,45 @@ def get_all_users():
             "alert_sat": bool(r[3]),
             "alert_sun": bool(r[4]),
             "alert_waiver": bool(r[5]),
+            "unsubscribed": bool(r[6]),
         })
     return users
+
+def get_user(email: str):
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT email, timezone, alert_thu, alert_sat, alert_sun, alert_waiver, unsubscribed
+        FROM users
+        WHERE email = ?
+    """, (email,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "email": row[0],
+        "timezone": row[1],
+        "alert_thu": bool(row[2]),
+        "alert_sat": bool(row[3]),
+        "alert_sun": bool(row[4]),
+        "alert_waiver": bool(row[5]),
+        "unsubscribed": bool(row[6]),
+    }
+
+
+def set_unsubscribed(email: str, unsubscribed: bool = True):
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET unsubscribed = ? WHERE email = ?",
+        (1 if unsubscribed else 0, email)
+    )
+    conn.commit()
+    conn.close()
+
 
 def upsert_user(email: str, timezone: str, alert_thu=True, alert_sat=True, alert_sun=True, alert_waiver=True):
     conn = db_connect()
@@ -195,6 +270,27 @@ def signup_web(
         alert_sun=bool(alert_sun),
         alert_waiver=bool(alert_waiver),
     )
+    send_welcome_email(email)   
+
+    SIGNING_SECRET = os.getenv("SIGNING_SECRET", "")
+
+def make_token(email: str) -> str:
+    if not SIGNING_SECRET:
+        raise RuntimeError("Missing SIGNING_SECRET env var")
+    return hmac.new(
+        SIGNING_SECRET.encode("utf-8"),
+        email.lower().encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+def verify_token(email: str, token: str) -> bool:
+    try:
+        expected = make_token(email)
+        return hmac.compare_digest(expected, token)
+    except Exception:
+        return False
+
+
 
     # Build redirect URL safely (handles @ and special chars)
     params = {
@@ -215,10 +311,16 @@ def signup_web(
 def send_to_matching_users(alert_key: str, subject: str, body: str):
     users = get_all_users()
     sent = 0
+
     for u in users:
+        # Skip unsubscribed users
+        if u.get("unsubscribed"):
+            continue
+
         if u.get(alert_key):
             send_email(u["email"], subject, body)
             sent += 1
+
     print(f"[{datetime.now()}] Sent '{alert_key}' to {sent} users")
 
 def thursday_reminder():
@@ -275,6 +377,35 @@ def test_email():
         "If you got this, your Render deployment can send emails successfully."
     )
     return {"ok": True, "sent_to": to_email}
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+BASE_URL = os.getenv("BASE_URL")
+
+def require_unsub_config():
+    if not SECRET_KEY or not BASE_URL:
+        raise RuntimeError("Missing SECRET_KEY or BASE_URL environment variables")
+
+def make_unsub_token(email: str) -> str:
+    require_unsub_config()
+
+    email_norm = email.strip().lower()
+    return hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        email_norm.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+def verify_unsub_token(email: str, token: str) -> bool:
+    require_unsub_config()
+
+    return hmac.compare_digest(make_unsub_token(email), (token or ""))
+
+def build_unsub_link(email: str) -> str:
+    require_unsub_config()
+
+    params = urllib.parse.urlencode({"email": email, "token": make_unsub_token(email)})
+    return f"{BASE_URL}/unsubscribe?{params}"
+
 
 @app.post("/test/{which}")
 def test(which: str):

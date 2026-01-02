@@ -5,6 +5,8 @@ import sqlite3
 import atexit
 import urllib.parse
 
+from fastapi import BackgroundTasks
+
 import hmac
 import hashlib
 
@@ -35,7 +37,11 @@ if not GMAIL_USER or not GMAIL_APP_PASSWORD:
 yag = yagmail.SMTP(GMAIL_USER, GMAIL_APP_PASSWORD)
 
 def send_email(to_email: str, subject: str, body: str):
-    yag.send(to=to_email, subject=subject, contents=body)
+    try:
+        yag.send(to=to_email, subject=subject, contents=body)
+        print(f"✅ Email sent to {to_email}")
+    except Exception as e:
+        print(f"❌ Email FAILED to {to_email}: {repr(e)}")
 
 def send_welcome_email(to_email: str):
     subject = "FantasyFrenzy ✅ You’re signed up"
@@ -254,6 +260,7 @@ def confirmed(
 @app.post("/signup-web")
 def signup_web(
     request: Request,
+    background_tasks: BackgroundTasks,
     email: str = Form(...),
     timezone: str = Form("America/New_York"),
     alert_thu: str | None = Form(None),
@@ -270,7 +277,7 @@ def signup_web(
         alert_sun=bool(alert_sun),
         alert_waiver=bool(alert_waiver),
     )
-    send_welcome_email(email)   
+    background_tasks.add_task(send_welcome_email, email)
 
     SIGNING_SECRET = os.getenv("SIGNING_SECRET", "")
 

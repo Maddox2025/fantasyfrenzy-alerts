@@ -260,7 +260,6 @@ def confirmed(
 @app.post("/signup-web")
 def signup_web(
     request: Request,
-    background_tasks: BackgroundTasks,
     email: str = Form(...),
     timezone: str = Form("America/New_York"),
     alert_thu: str | None = Form(None),
@@ -268,6 +267,35 @@ def signup_web(
     alert_sun: str | None = Form(None),
     alert_waiver: str | None = Form(None),
 ):
+    # Save user first
+    upsert_user(
+        email=email,
+        timezone=timezone,
+        alert_thu=bool(alert_thu),
+        alert_sat=bool(alert_sat),
+        alert_sun=bool(alert_sun),
+        alert_waiver=bool(alert_waiver),
+    )
+
+    # Try to send welcome email, but NEVER break signup if email fails
+    try:
+        send_welcome_email(email)
+    except Exception as e:
+        print("Welcome email failed:", str(e))
+
+    # Redirect to confirmation page (THIS is what prevents 'null')
+    import urllib.parse
+    params = {
+        "email": email,
+        "timezone": timezone,
+        "alert_thu": str(bool(alert_thu)).lower(),
+        "alert_sat": str(bool(alert_sat)).lower(),
+        "alert_sun": str(bool(alert_sun)).lower(),
+        "alert_waiver": str(bool(alert_waiver)).lower(),
+    }
+    url = "/confirmed?" + urllib.parse.urlencode(params)
+    return RedirectResponse(url=url, status_code=303)
+
     # Save user settings
     upsert_user(
         email=email,
